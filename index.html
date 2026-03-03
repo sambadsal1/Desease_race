@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balapan Bahasa Inggris SD Kelas 5 - I've Got A Stomachache</title>
+    
+    <!-- 1. Tailwind CSS CDN untuk styling responsif -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Konfigurasi Tailwind untuk menggunakan font Inter dan animasi kustom -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    keyframes: {
+                        'fade-in-up': {
+                            '0%': { opacity: 0, transform: 'translateY(10px)' },
+                            '100%': { opacity: 1, transform: 'translateY(0)' },
+                        },
+                        'fade-out-down': {
+                            '0%': { opacity: 1, transform: 'translateY(0)' },
+                            '100%': { opacity: 0, transform: 'translateY(10px)' },
+                        },
+                        'pop-in': {
+                            '0%': { transform: 'scale(0.8)', opacity: 0 },
+                            '50%': { transform: 'scale(1.1)', opacity: 1 },
+                            '100%': { transform: 'scale(1)', opacity: 1 },
+                        }
+                    },
+                    animation: {
+                        'fade-in-up': 'fade-in-up 0.5s ease-out forwards',
+                        'fade-out-down': 'fade-out-down 0.5s ease-in forwards',
+                        'pop-in': 'pop-in 0.3s ease-out',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- 2. React, ReactDOM, dan Babel CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 3. Tone.js untuk efek suara -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    
+    <style>
+        #root { min-height: 100vh; }
+        /* Styling untuk efek hover pada tombol */
+        .option-button:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useMemo, useRef } = React;
+
+        // --- DATA SOAL BAHASA INGGRIS (Disesuaikan dari PDF) ---
+        // HINT telah Dihilangkan
+        const QUESTION_BANK = [
+            // Multiple Choice - Ailment Identification
+            { id: 1, type: 'MC', question: "He eats too much candy. He has a...", correctAnswer: "toothache", options: ["cough", "headache", "toothache", "stomachache"] },
+            { id: 2, type: 'MC', question: "I have a... after watching television for a long time.", correctAnswer: "sore eyes", options: ["sore eyes", "backache", "headache", "cold"] },
+            { id: 3, type: 'MC', question: "Dendi has a... after eating spicy food.", correctAnswer: "stomachache", options: ["backache", "headache", "sore eyes", "stomachache"] },
+            { id: 4, type: 'MC', question: "I will go to the dentist. I have a...", correctAnswer: "toothache", options: ["cough", "headache", "toothache", "stomachache"] },
+            { id: 5, type: 'MC', question: "I have a... (Coughing sound)", correctAnswer: "cough", options: ["cough", "fever", "stomachache", "sore throat"] },
+            // Multiple Choice - Advice
+            { id: 6, type: 'MC', question: "Putri has a headache. Made says, 'You should...'", correctAnswer: "take some medicine", options: ["drink a glass of milk", "go to the dentist", "go to the park", "take some medicine"] },
+            { id: 7, type: 'MC', question: "I've got a sore throat. I should...", correctAnswer: "drink warm water", options: ["eat ice cream", "shout loudly", "drink warm water", "run fast"] },
+            // Yes/No Questions (Grammar and Ailment Identification)
+            // Jawaban benar di Yes/No harus selalu menjadi opsi pertama, opsi kedua adalah kebalikannya
+            { id: 8, type: 'YN', question: "The boy is holding his head. Does he have a headache?", correctAnswer: "Yes, he does", options: ["Yes, he does", "No, he doesn't"] },
+            { id: 9, type: 'YN', question: "The girl is holding her stomach. Does she have a sore eyes?", correctAnswer: "No, she doesn't", options: ["No, she doesn't", "Yes, she does"] },
+            { id: 10, type: 'YN', question: "He looks very tired and wrapped in a blanket. Does he catch a cold?", correctAnswer: "Yes, he does", options: ["Yes, he does", "No, he doesn't"] },
+            { id: 11, type: 'YN', question: "Rini is smiling. Does she has a toothache?", correctAnswer: "No, she doesn't", options: ["No, she doesn't", "Yes, she does"] },
+            { id: 12, type: 'YN', question: "If you have a fever, should you wear a thick jacket?", correctAnswer: "Yes, you should", options: ["Yes, you should", "No, you shouldn't"] },
+        ];
+
+        // --- EFEK SUARA MENGGUNAKAN TONE.JS ---
+
+        const synth = typeof Tone !== 'undefined' ? new Tone.Synth().toDestination() : null;
+        const winSynth = typeof Tone !== 'undefined' ? new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 1 },
+        }).toDestination() : null;
+
+        const startAudioContext = () => {
+             if (Tone && Tone.context.state !== 'running') {
+                Tone.start().then(() => {
+                    console.log("Audio Context Started");
+                }).catch(err => {
+                    console.error("Failed to start audio context:", err);
+                });
+            }
+        };
+
+        const playCorrectSound = () => {
+            startAudioContext();
+            if (synth) {
+                synth.triggerAttackRelease("C5", "8n");
+                synth.triggerAttackRelease("E5", "8n", "+0.1");
+                synth.triggerAttackRelease("G5", "8n", "+0.2");
+            }
+        };
+
+        const playWrongSound = () => {
+            startAudioContext();
+            if (synth) {
+                synth.triggerAttackRelease("C3", "8n");
+                synth.triggerAttackRelease("B2", "8n", "+0.1");
+            }
+        };
+
+        const playWinSound = () => {
+            startAudioContext();
+            if (winSynth) {
+                winSynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "1n");
+            }
+        };
+
+        // --- UTILITY SOAL ---
+
+        /**
+         * Mengacak array secara inplace (Fisher-Yates)
+         */
+        const shuffleArray = (array) => {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        };
+
+        /**
+         * Mengambil dua soal unik yang berbeda
+         */
+        const generateBalancedPair = (currentP1Id, currentP2Id) => {
+            let availableQuestions = QUESTION_BANK.filter(q => q.id !== currentP1Id && q.id !== currentP2Id);
+            
+            if (availableQuestions.length < 2) {
+                // Jika bank soal habis, reset bank soal (ulangi soal)
+                availableQuestions = QUESTION_BANK.slice(); 
+            }
+
+            // Shuffle available questions
+            shuffleArray(availableQuestions);
+
+            // Ambil 2 soal pertama
+            const q1 = availableQuestions[0];
+            const q2 = availableQuestions[1];
+
+            // Pastikan opsi MC diacak
+            if (q1.type === 'MC') q1.options = shuffleArray([...q1.options]);
+            if (q2.type === 'MC') q2.options = shuffleArray([...q2.options]);
+            
+            return { q1, q2 };
+        };
+
+
+        // --- KOMPONEN NOTIFIKASI ---
+
+        const NotificationOverlay = ({ notification, onClose }) => {
+            if (!notification.visible) return null;
+
+            const { isCorrect, message, score, isP1 } = notification;
+            const playerLabel = isP1 ? 'Pemain 1' : 'Pemain 2';
+            const bgColor = isCorrect ? 'bg-green-600' : 'bg-red-600';
+            const icon = isCorrect ? '✅' : '❌';
+            const actionText = isCorrect ? 'Jawaban Benar! Melaju +1.' : 'Jawaban Salah! Soal diganti.';
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4 transition-opacity duration-300">
+                    <div 
+                        className={`w-full max-w-md p-6 rounded-2xl shadow-2xl text-white text-center ${bgColor} transform transition-all duration-300 animate-pop-in`}
+                        role="alert"
+                    >
+                        <div className="text-6xl mb-4">{icon}</div>
+                        <h3 className="text-3xl font-extrabold mb-2">{actionText}</h3>
+                        <p className="text-2xl font-bold mb-4">{playerLabel} - Skor Saat Ini: {score}</p>
+                        <p className="text-lg italic">{message}</p>
+                    </div>
+                </div>
+            );
+        };
+
+
+        // --- KOMPONEN UTAMA REACT ---
+
+        const MAX_SCORE = 10;
+
+        function App() {
+            const [p1Score, setP1Score] = useState(0);
+            const [p2Score, setP2Score] = useState(0);
+            const [p1Question, setP1Question] = useState(null);
+            const [p2Question, setP2Question] = useState(null);
+            const [gameState, setGameState] = useState('READY'); // READY, PLAYING, FINISHED
+            const [winner, setWinner] = useState(null);
+            
+            const [notification, setNotification] = useState({ visible: false, message: '', score: null, isP1: true, isCorrect: false });
+            const notificationTimeoutRef = useRef(null);
+
+            // Persentase posisi mobil (0% sampai 100%)
+            const p1CarPosition = (p1Score / MAX_SCORE) * 100;
+            const p2CarPosition = (p2Score / MAX_SCORE) * 100;
+
+            // --- LOGIKA GAME ---
+
+            const dismissNotification = useCallback(() => {
+                setNotification(prev => ({ ...prev, visible: false }));
+            }, []);
+
+            const showNotification = useCallback((isP1, isCorrect, score, message) => {
+                // Hentikan timeout sebelumnya jika ada
+                if (notificationTimeoutRef.current) {
+                    clearTimeout(notificationTimeoutRef.current);
+                }
+
+                setNotification({ visible: true, message, score, isP1, isCorrect });
+                
+                // Atur timeout untuk menutup notifikasi setelah 2 detik
+                notificationTimeoutRef.current = setTimeout(dismissNotification, 2000);
+            }, [dismissNotification]);
+
+
+            const handleAnswer = useCallback((player, selection) => {
+                if (gameState !== 'PLAYING') return;
+
+                const isP1 = player === 1;
+                const currentQ = isP1 ? p1Question : p2Question;
+                const setScore = isP1 ? setP1Score : setP2Score;
+                
+                if (!currentQ) return;
+
+                const isCorrect = selection === currentQ.correctAnswer;
+                let newScore = isP1 ? p1Score : p2Score;
+                let notificationMessage = currentQ.question;
+
+                if (isCorrect) {
+                    newScore = newScore + 1;
+                    setScore(newScore);
+                    playCorrectSound();
+                } else {
+                    playWrongSound();
+                    // Skor tidak berkurang, tapi soal diganti
+                }
+                
+                // Tampilkan notifikasi
+                showNotification(isP1, isCorrect, newScore, notificationMessage);
+
+                // Ganti soal untuk kedua pemain untuk menjaga kesetaraan dan dinamika permainan
+                if (newScore < MAX_SCORE) {
+                    const currentP1Id = isP1 ? currentQ.id : p1Question?.id;
+                    const currentP2Id = isP1 ? p2Question?.id : currentQ.id;
+
+                    const { q1, q2 } = generateBalancedPair(currentP1Id, currentP2Id);
+                    setP1Question(q1);
+                    setP2Question(q2); 
+                }
+
+            }, [gameState, p1Question, p2Question, p1Score, p2Score, showNotification]);
+            
+            const startGame = useCallback(() => {
+                const { q1, q2 } = generateBalancedPair(null, null);
+                setP1Score(0);
+                setP2Score(0);
+                setP1Question(q1);
+                setP2Question(q2);
+                setWinner(null);
+                setGameState('PLAYING');
+            }, []);
+
+            useEffect(() => {
+                startGame();
+            }, [startGame]);
+
+            useEffect(() => {
+                if (p1Score === MAX_SCORE) {
+                    setWinner('Pemain 1 (Merah)');
+                    setGameState('FINISHED');
+                    playWinSound();
+                } else if (p2Score === MAX_SCORE) {
+                    setWinner('Pemain 2 (Biru)');
+                    setGameState('FINISHED');
+                    playWinSound();
+                }
+            }, [p1Score, p2Score]);
+
+
+            // --- KOMPONEN KECIL UNTUK REUSABILITY ---
+
+            /**
+             * Komponen tampilan mobil menggunakan SVG (Diatur untuk Gerakan Vertikal)
+             */
+            const CarIcon = ({ color, position, lane }) => {
+                const horizontalPosition = lane === 'left' ? '25%' : '75%';
+                const verticalPosition = `calc(${position * 0.9 + 5}% - 16px)`; 
+
+                return (
+                    <svg
+                        className="absolute h-8 w-8 z-20 transition-all duration-500 ease-out"
+                        style={{ 
+                            bottom: verticalPosition,
+                            left: horizontalPosition,
+                            transform: 'translateX(-50%)'
+                        }}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                    >
+                        <title>Mobil {color === 'red' ? 'Merah' : 'Biru'}</title>
+                        {/* Body Mobil */}
+                        <rect x="2" y="10" width="20" height="6" rx="2" fill={color === 'red' ? "#EF4444" : "#3B82F6"} stroke="#1F2937" strokeWidth="1.5" />
+                        {/* Jendela */}
+                        <path d="M4 10L6 7H18L20 10H4Z" fill={color === 'red' ? "#FCA5A5" : "#93C5FD"} stroke="#1F2937" strokeWidth="1.5" />
+                        {/* Ban */}
+                        <circle cx="6" cy="16" r="2.5" fill="#1F2937" />
+                        <circle cx="18" cy="16" r="2.5" fill="#1F2937" />
+                    </svg>
+                );
+            };
+
+            /**
+             * Komponen Kartu Soal dan Jawaban
+             */
+            const QuestionCard = ({ player, question, score, onAnswer }) => {
+                const isP1 = player === 1;
+                const bgColor = isP1 ? 'bg-red-50/70 border-red-400' : 'bg-blue-50/70 border-blue-400';
+                const color = isP1 ? 'text-red-700' : 'text-blue-700';
+
+                // Kelas baru untuk tombol opsi: text-lg (lebih kecil) dan p-3 (padding sedikit kurang)
+                // Grid disesuaikan untuk selalu 2 kolom pada layar kecil dan desktop untuk memaksimalkan lebar tombol
+                const buttonBaseClasses = `p-3 text-lg font-bold rounded-xl transition transform active:scale-95 duration-200 option-button 
+                                         text-white shadow-md focus:outline-none focus:ring-4 focus:ring-opacity-50 break-words`; 
+                const p1ButtonColor = 'bg-red-500 hover:bg-red-600 focus:ring-red-500';
+                const p2ButtonColor = 'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500';
+
+                return (
+                    <div className={`p-4 rounded-2xl border-2 h-full flex flex-col ${bgColor}`}>
+                        <h2 className={`text-2xl font-extrabold mb-2 ${color}`}>
+                            {isP1 ? 'Pemain 1 (Merah)' : 'Pemain 2 (Biru)'}
+                        </h2>
+                        <p className={`text-lg font-bold mb-4 ${color}`}>Skor: {score}</p>
+                        
+                        {gameState !== 'PLAYING' || !question ? (
+                            <div className="flex-grow p-6 bg-white rounded-xl shadow-inner flex items-center justify-center">
+                                <p className="text-xl text-gray-600 text-center">
+                                    {gameState === 'READY' ? 'Tekan "Mulai Ulang Balapan" di tengah untuk memulai.' : 'Permainan Selesai'}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex-grow p-6 bg-white rounded-xl shadow-inner mb-4 flex flex-col justify-center">
+                                <p className="text-xl font-medium text-gray-800 text-center">
+                                    {question.question}
+                                </p>
+                            </div>
+                        )}
+                        
+
+                        {/* Grid disesuaikan untuk memastikan tombol cukup lebar */}
+                        <div className="grid gap-3 flex-grow-0 grid-cols-2">
+                            {question?.options.map((option, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => onAnswer(player, option)}
+                                    className={`${buttonBaseClasses} ${isP1 ? p1ButtonColor : p2ButtonColor}`}
+                                    disabled={gameState !== 'PLAYING' || notification.visible}
+                                >
+                                    {option}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                );
+            };
+
+            /**
+             * Komponen Lintasan Balap (Diatur untuk Orientasi Vertikal)
+             */
+            const RaceTrack = useMemo(() => {
+                return (
+                    <div className="relative flex flex-col items-center justify-start h-full p-4 bg-gray-100 rounded-xl shadow-lg border-4 border-gray-300">
+                        <h1 className="text-3xl font-black mb-4 text-gray-800">Balapan Bahasa Inggris</h1>
+
+                        {/* Garis Finish (Atas) */}
+                        <div className="absolute top-0 left-0 right-0 h-10 bg-green-500 flex items-center justify-center z-10 rounded-t-lg shadow-inner">
+                            <span className="text-white text-lg font-bold">FINISH ({MAX_SCORE})</span>
+                        </div>
+
+                        {/* Garis Start (Bawah) */}
+                        <div className="absolute bottom-0 left-0 right-0 h-10 bg-gray-400 flex items-center justify-center z-10 rounded-b-lg shadow-inner">
+                            <span className="text-white text-lg font-bold">START (0)</span>
+                        </div>
+                        
+                        {/* Lintasan Utama (Kolom Tengah Vertikal) */}
+                        <div className="w-2/3 max-w-sm relative h-full pt-10 pb-10"> 
+                            
+                            <div className="absolute inset-x-0 inset-y-0 bg-gray-200 border-x-2 border-gray-500">
+                                {/* Pembatas Tengah Vertikal */}
+                                <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-white border-x-2 border-dashed border-gray-500 transform -translate-x-1/2"></div>
+                                
+                                {/* Garis-garis penanda progress (Horizontal) */}
+                                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
+                                    <div key={i} className="absolute w-full border-t border-gray-400 border-opacity-50" 
+                                        style={{ bottom: `${(i / MAX_SCORE) * 100}%` }}></div>
+                                ))}
+                                
+                                {/* Mobil P1 (Jalur Kiri) dan P2 (Jalur Kanan) */}
+                                <CarIcon color="red" position={p1CarPosition} lane="left" /> 
+                                <CarIcon color="blue" position={p2CarPosition} lane="right" />
+                            </div>
+                        </div>
+
+                        {/* Tombol Mulai/Ulangi di tengah track */}
+                        {(gameState === 'READY' || gameState === 'FINISHED') && (
+                             <button
+                                onClick={startGame}
+                                className="absolute bottom-1/2 left-1/2 transform -translate-x-1/2 translate-y-1/2 px-6 py-2 text-lg font-bold bg-purple-600 text-white rounded-full hover:bg-purple-700 transition shadow-xl z-40"
+                            >
+                                {gameState === 'READY' ? 'Mulai Balapan' : 'Mulai Ulang Balapan'}
+                            </button>
+                        )}
+
+
+                        {/* Overlay Kemenangan */}
+                        {gameState === 'FINISHED' && (
+                            <div className="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center rounded-xl z-30">
+                                <div className="p-8 bg-white rounded-xl shadow-2xl text-center animate-pop-in">
+                                    <h2 className="text-4xl font-extrabold text-green-600 mb-4">🎉 {winner} MENANG! 🎉</h2>
+                                    <p className="text-xl text-gray-700 mb-6">Selamat telah menyelesaikan 10 soal dengan benar!</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }, [p1CarPosition, p2CarPosition, gameState, winner, startGame]);
+
+
+            return (
+                <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
+                    <header className="text-center mb-6">
+                        <h1 className="text-4xl font-extrabold text-gray-900 mb-2">I've Got A Stomachache Race!</h1>
+                        <p className="text-lg text-gray-600 font-semibold">Balapan Bahasa Inggris untuk Kelas 5 SD - Bab Keluhan Sakit</p>
+                    </header>
+                    
+                    <main className="flex flex-col md:flex-row gap-6 h-[calc(100vh-140px)]">
+                        {/* Kolom Kiri: Pemain 1 */}
+                        <div className="md:w-1/3 w-full h-full">
+                            <QuestionCard
+                                player={1}
+                                question={p1Question}
+                                score={p1Score}
+                                onAnswer={handleAnswer}
+                            />
+                        </div>
+
+                        {/* Kolom Tengah: Lintasan Balap Vertikal */}
+                        <div className="md:w-1/3 w-full h-full min-h-[200px] md:min-h-full">
+                            {RaceTrack}
+                        </div>
+
+                        {/* Kolom Kanan: Pemain 2 */}
+                        <div className="md:w-1/3 w-full h-full">
+                            <QuestionCard
+                                player={2}
+                                question={p2Question}
+                                score={p2Score}
+                                onAnswer={handleAnswer}
+                            />
+                        </div>
+                    </main>
+
+                    {/* Notifikasi Pop-up */}
+                    <NotificationOverlay notification={notification} onClose={dismissNotification} />
+                </div>
+            );
+        }
+
+        // --- Perbaikan API React 18 ---
+        const container = document.getElementById('root');
+        if (container) {
+            const root = ReactDOM.createRoot(container);
+            root.render(<App />);
+        }
+    </script>
+</body>
+</html>
